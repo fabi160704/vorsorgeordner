@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { backend, errorMessage } from "../lib/backend";
+  import { calendarEvents, toIcs } from "../lib/ics";
   import {
     CATEGORIES,
     SETTLEMENT_STATUS,
@@ -38,6 +40,21 @@
   const totalYearly = $derived(costRows.reduce((sum, r) => sum + r.yearly, 0));
 
   const ending = $derived(upcomingEnds(entries, today, 120));
+  const eventCount = $derived(calendarEvents(entries, today).length);
+
+  let calendarMessage = $state<string | null>(null);
+  let calendarError = $state<string | null>(null);
+
+  async function exportCalendar() {
+    calendarMessage = null;
+    calendarError = null;
+    try {
+      const path = await backend.exportPlain(`Vorsorgeordner-Fristen-${today}.ics`, "ics", toIcs(entries, new Date()));
+      if (path) calendarMessage = `${eventCount} Termine exportiert nach ${path}`;
+    } catch (err) {
+      calendarError = errorMessage(err);
+    }
+  }
   const review = $derived(needsReview(entries, today));
 
   const deceasedIds = $derived(new Set(persons.filter((p) => p.deathDate).map((p) => p.id)));
@@ -101,7 +118,18 @@
   <p class="hint">Einträge, die mehreren Personen gehören, zählen einmal. Einmalige Kosten sind nicht enthalten.</p>
 {/if}
 
-<h3>Laufzeiten, die in den nächsten 4 Monaten enden</h3>
+<div class="calendar">
+  <h3>Laufzeiten, die in den nächsten 4 Monaten enden</h3>
+  <button onclick={exportCalendar} disabled={eventCount === 0}>Fristen in Kalender exportieren (.ics)</button>
+</div>
+<p class="hint">
+  Die Kalenderdatei enthält für alle künftigen Laufzeitenden einen Termin und, wenn sich die Kündigungsfrist berechnen
+  lässt, einen Termin für das Ende der Kündigungsfrist ({eventCount} Termine). Sie enthält Bezeichnung, Anbieter und
+  Fristen, aber keine Nummern oder Zugangshinweise. Die Datei lässt sich in Outlook, Apple Kalender, Google Kalender
+  und Thunderbird importieren.
+</p>
+{#if calendarMessage}<p class="notice">{calendarMessage}</p>{/if}
+{#if calendarError}<p class="error">{calendarError}</p>{/if}
 {#if ending.length === 0}
   <p class="muted">Keine.</p>
 {:else}
@@ -150,6 +178,20 @@
   h3 {
     margin: 28px 0 10px;
     font-size: 1em;
+  }
+  .calendar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 28px 0 0;
+  }
+  .calendar h3 {
+    margin: 0;
+  }
+  .hint {
+    margin: 6px 0 10px;
   }
   .plain {
     list-style: none;

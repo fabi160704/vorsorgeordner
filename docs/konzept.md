@@ -44,6 +44,18 @@ Gründe für diese Wahl:
 
 Eine SQLite-Datenbank mit SQLCipher wäre die Alternative. Sie lohnt sich erst bei großen Datenmengen oder vielen Anhängen und erschwert das Öffnen ohne App.
 
+### Anhänge
+
+Anhänge wie gescannte Policen liegen nicht in der `.age`-Datei, sondern einzeln verschlüsselt im Ordner `<Dateiname>.anhaenge` daneben. In der Datei selbst wären sie bei jedem Speichern mitzuschreiben, und die Datei würde schnell mehrere Dutzend MB groß.
+
+Jeder Vorsorgeordner hat dafür einen eigenen age-Schlüssel (X25519). Er entsteht mit dem ersten Anhang und steht als `attachmentKey` im verschlüsselten JSON-Dokument. Daraus folgt:
+
+- Wer die Datei mit der Passphrase öffnen kann, kann auch die Anhänge öffnen, auch mit dem `age`-Werkzeug ohne App.
+- Beim Ändern der Passphrase müssen die Anhänge nicht neu verschlüsselt werden.
+- Ein Anhang lässt sich ohne scrypt ver- und entschlüsseln, das Öffnen geht deshalb schnell.
+
+Entfernte Anhänge löscht die App beim nächsten Speichern aus dem Ordner. Erst dann ist die Änderung auch in der Datei gespeichert.
+
 ## Datenmodell
 
 Ein Vorsorgeordner enthält Personen und Einträge. Jeder Eintrag hat eine Kategorie:
@@ -73,6 +85,8 @@ Alle Kategorien haben dieselben Felder. Nicht benötigte Felder bleiben leer. Da
 - Nach einer einstellbaren Zeit ohne Eingabe (Standard 15 Minuten) speichert die App und sperrt sich.
 - Beim Ändern der Passphrase wird auch die Sicherungskopie `.bak` neu verschlüsselt. Kopien außerhalb der App, etwa im Versionsverlauf eines Cloud-Ordners, bleiben mit der alten Passphrase lesbar.
 - Exporte als JSON oder CSV sind unverschlüsselt. Die App warnt vorher und weigert sich, dabei eine verschlüsselte `.age`-Datei zu überschreiben.
+- Zum Öffnen eines Anhangs legt die App eine entschlüsselte Kopie im temporären Ordner des Systems ab, damit ihn das passende Programm anzeigen kann. Diese Kopien löscht sie beim Sperren und beim Beenden. Stürzt die App ab, bleiben sie bis zum nächsten Aufräumen des temporären Ordners liegen.
+- Der Schlüssel für die Anhänge ändert sich beim Ändern der Passphrase nicht. Wer eine alte Kopie der Datei und die alte Passphrase hat, kann damit weiterhin die Anhänge öffnen.
 - Die Oberfläche darf nur die eigenen Befehle und die Dateidialoge aufrufen (Tauri Capabilities, `src-tauri/capabilities/default.json`), und eine Content Security Policy verhindert das Nachladen fremder Inhalte.
 
 Wenn die Passphrase verloren geht, sind die Daten nicht wiederherstellbar. Deshalb gehört die Passphrase auf Papier an einen Ort, den Angehörige im Ernstfall kennen, zum Beispiel in einen verschlossenen Umschlag bei der Vorsorgevollmacht. Zusätzlich hilft ein aktueller Ausdruck der Druckansicht im Ordner mit den Originaldokumenten.
@@ -93,17 +107,38 @@ Die Checkliste schlägt typische Einträge vor. Elf Punkte gelten für jede Pers
 
 Ein Punkt gilt als erledigt, wenn ein Eintrag in einer passenden Kategorie existiert, dessen Bezeichnung oder Anbieter ein Stichwort enthält. Bei "Krankenversicherung" reicht also ein Eintrag "Krankenkasse" in der Kategorie Gesundheit. Einträge ohne Person zählen für alle Personen. Punkte, die nicht zutreffen, lassen sich ausblenden; das wird in der Datei gespeichert.
 
+## Abwicklung
+
+Sobald für eine Person ein Sterbedatum eingetragen ist, erscheint der Tab "Abwicklung". Er enthält zwei Listen.
+
+Die erste enthält allgemeine erste Schritte mit den gesetzlichen Fristen:
+
+- Tod beim Standesamt anzeigen, spätestens am dritten Werktag (§ 28 PStG)
+- Bestattung beauftragen; die Fristen regeln die Bundesländer
+- Testament unverzüglich beim Nachlassgericht abliefern (§ 2259 BGB)
+- Vorschuss auf die Hinterbliebenenrente innerhalb von 30 Tagen beim Renten Service der Deutschen Post beantragen (Deutsche Rentenversicherung)
+- Arbeitgeber informieren
+- Erbschaft annehmen oder binnen sechs Wochen ausschlagen (§ 1944 BGB)
+- Erbfall binnen drei Monaten dem Finanzamt anzeigen (§ 30 ErbStG)
+
+Die zweite enthält alle Einträge der Person und die gemeinsamen Einträge. Einträge mit der Aktion "nichts tun" fehlen. Sortiert wird nach der Aktion: Tod melden, Leistung beantragen, kündigen, umschreiben, prüfen, nicht festgelegt. Erledigte Aufgaben stehen unten. Status und Notiz lassen sich direkt in der Liste ändern.
+
+Die Fristen sind allgemeine Hinweise ohne Rechtsberatung, Stand November 2026. Quellen: die genannten Gesetze auf gesetze-im-internet.de und die Erklärung der Deutschen Rentenversicherung zum Sterbevierteljahr.
+
+## Kalender
+
+Die Übersicht exportiert eine Kalenderdatei (.ics) mit allen künftigen Laufzeitenden. Lässt sich aus der Kündigungsfrist eine Dauer lesen (z. B. "3 Monate zum Ablauf"), kommt ein Termin für das Ende der Kündigungsfrist dazu, mit Erinnerung 14 Tage vorher. Die Datei enthält Bezeichnung, Anbieter und Fristen, aber keine Nummern oder Zugangshinweise. Bei Verträgen, die sich automatisch verlängern, muss das Laufzeitende nach der Verlängerung von Hand angepasst werden.
+
 ## Nächste Schritte
 
 Umgesetzt in Version 0.2: Checkliste, Passphrase ändern, automatisches Sperren, Export als JSON und CSV.
 
-Version 0.3:
-
-- Anhänge wie gescannte Policen, verschlüsselt in der Datei oder in einem verschlüsselten Ordner daneben
-- Erinnerungen an Kündigungsfristen, z. B. als Kalenderdatei (.ics)
-- Nachlass-Ansicht als Aufgabenliste, sortiert nach Aktion und Dringlichkeit
+Umgesetzt in Version 0.3: Anhänge, Kalenderdatei mit Fristen, Abwicklung als Aufgabenliste.
 
 Später:
+
+- Schlüssel für die Anhänge erneuern, z. B. nach dem Ändern der Passphrase
+- Laufzeitende bei automatischer Verlängerung selbst fortschreiben
 
 - Zusätzlicher Notfallschlüssel: age erlaubt mehrere Empfänger. Neben der Passphrase könnte ein auf Papier gedruckter Schlüssel die Datei öffnen.
 - Erkennen, wenn die Datei in einem Cloud-Ordner gleichzeitig von zwei Geräten geändert wurde

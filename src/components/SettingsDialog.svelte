@@ -132,7 +132,8 @@
       <h3>Exportieren</h3>
       <p class="hint">
         JSON enthält alle Daten und dient als Sicherung oder zur Weiterverarbeitung. CSV enthält die Einträge als
-        Tabelle für Excel oder LibreOffice. Beide Formate sind unverschlüsselt.
+        Tabelle für Excel oder LibreOffice. Beide Formate sind unverschlüsselt. Der JSON-Export enthält auch den
+        Schlüssel, mit dem sich die Anhänge entschlüsseln lassen.
       </p>
       <div class="row">
         <button onclick={() => exportAs("json")}>Als JSON exportieren</button>

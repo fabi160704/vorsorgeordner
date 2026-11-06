@@ -1,6 +1,6 @@
 [package]
 name = "vorsorgeordner"
-version = "0.2.0"
+version = "0.3.0"
 description = "Vorsorgeordner: Verträge, Versicherungen und wichtige Hinweise für die Familie"
 edition = "2021"
 rust-version = "1.90"
@@ -15,6 +15,7 @@ tauri-build = { version = "2.7.4", features = [] }
 [dependencies]
 tauri = { version = "2.12.5", features = [] }
 tauri-plugin-dialog = "2.8.4"
+tauri-plugin-opener = "2.7.2"
 age = "0.12.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
