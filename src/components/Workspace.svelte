@@ -6,6 +6,7 @@
   import type { ChecklistItem } from "../lib/checklist";
   import { belongsTo, newEntry, newPerson, type Entry, type Person } from "../lib/model";
   import Checklist from "./Checklist.svelte";
+  import Estate from "./Estate.svelte";
   import EntryForm from "./EntryForm.svelte";
   import EntryList from "./EntryList.svelte";
   import Overview from "./Overview.svelte";
@@ -13,7 +14,7 @@
   import PrintView from "./PrintView.svelte";
   import SettingsDialog from "./SettingsDialog.svelte";
 
-  type View = "eintraege" | "uebersicht" | "checkliste" | "druck";
+  type View = "eintraege" | "uebersicht" | "checkliste" | "abwicklung" | "druck";
 
   let view = $state<View>("eintraege");
   let selectedPersonId = $state<string | null>(null);
@@ -25,6 +26,11 @@
   const selectedPerson = $derived(vault.persons.find((p) => p.id === selectedPersonId) ?? null);
   const visibleEntries = $derived(vault.entries.filter((e) => belongsTo(e, selectedPersonId)));
   const fileName = $derived(store.path?.split(/[\\/]/).pop() ?? "");
+  const deceased = $derived(
+    selectedPerson ? (selectedPerson.deathDate ? [selectedPerson] : []) : vault.persons.filter((p) => p.deathDate),
+  );
+  // Ohne verstorbene Person gibt es keine Abwicklung; dann zurück zu den Einträgen.
+  const activeView = $derived<View>(view === "abwicklung" && deceased.length === 0 ? "eintraege" : view);
 
   async function save() {
     try {
@@ -157,14 +163,17 @@
     {/if}
 
     <div class="views no-print" role="tablist">
-      <button role="tab" aria-selected={view === "eintraege"} onclick={() => (view = "eintraege")}>Einträge</button>
-      <button role="tab" aria-selected={view === "uebersicht"} onclick={() => (view = "uebersicht")}>Übersicht</button>
-      <button role="tab" aria-selected={view === "checkliste"} onclick={() => (view = "checkliste")}>Checkliste</button>
-      <button role="tab" aria-selected={view === "druck"} onclick={() => (view = "druck")}>Druckansicht</button>
+      <button role="tab" aria-selected={activeView === "eintraege"} onclick={() => (view = "eintraege")}>Einträge</button>
+      <button role="tab" aria-selected={activeView === "uebersicht"} onclick={() => (view = "uebersicht")}>Übersicht</button>
+      <button role="tab" aria-selected={activeView === "checkliste"} onclick={() => (view = "checkliste")}>Checkliste</button>
+      {#if deceased.length > 0}
+        <button role="tab" aria-selected={activeView === "abwicklung"} onclick={() => (view = "abwicklung")}>Abwicklung</button>
+      {/if}
+      <button role="tab" aria-selected={activeView === "druck"} onclick={() => (view = "druck")}>Druckansicht</button>
     </div>
 
     <section class="content">
-      {#if view === "eintraege"}
+      {#if activeView === "eintraege"}
         <EntryList
           entries={visibleEntries}
           persons={vault.persons}
@@ -172,9 +181,17 @@
           onedit={(entry) => (editingEntry = entry)}
           onadd={addEntry}
         />
-      {:else if view === "uebersicht"}
+      {:else if activeView === "uebersicht"}
         <Overview entries={visibleEntries} persons={vault.persons} onedit={(entry) => (editingEntry = entry)} />
-      {:else if view === "checkliste"}
+      {:else if activeView === "abwicklung"}
+        <Estate
+          {vault}
+          {deceased}
+          onedit={(entry) => (editingEntry = entry)}
+          onentrystatus={(id, status, notes) => store.setEntryStatus(id, status, notes)}
+          onstepstatus={(key, status) => store.setEstateStep(key, status)}
+        />
+      {:else if activeView === "checkliste"}
         <Checklist
           {vault}
           personId={selectedPersonId}

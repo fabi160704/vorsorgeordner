@@ -1,14 +1,17 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
-  import { backend } from "../lib/backend";
+  import { backend, errorMessage } from "../lib/backend";
+  import { store } from "../lib/state.svelte";
   import {
     CATEGORIES,
     DEATH_ACTIONS,
     INTERVALS,
     SETTLEMENT_STATUS,
     centsToInput,
+    formatBytes,
     parseEuro,
     todayIso,
+    type Attachment,
     type Entry,
     type Person,
   } from "../lib/model";
@@ -38,6 +41,35 @@
   );
 
   onMount(() => dialog.showModal());
+
+  let attachmentBusy = $state(false);
+  let attachmentError = $state<string | null>(null);
+
+  async function attachmentAction(action: () => Promise<unknown>) {
+    attachmentBusy = true;
+    attachmentError = null;
+    try {
+      await action();
+    } catch (err) {
+      attachmentError = errorMessage(err);
+    } finally {
+      attachmentBusy = false;
+    }
+  }
+
+  function addAttachment() {
+    return attachmentAction(async () => {
+      const source = await backend.pickAttachmentSource();
+      if (!source) return;
+      const attachment = await store.addAttachment(source);
+      draft.attachments = [...draft.attachments, attachment];
+    });
+  }
+
+  function removeAttachment(attachment: Attachment) {
+    // Die Datei wird erst beim Speichern gelöscht, wenn kein Eintrag mehr darauf verweist.
+    draft.attachments = draft.attachments.filter((a) => a.id !== attachment.id);
+  }
 
   function togglePerson(id: string, checked: boolean) {
     draft.personIds = checked ? [...draft.personIds, id] : draft.personIds.filter((p) => p !== id);
@@ -163,6 +195,38 @@
       </fieldset>
 
       <fieldset>
+        <legend>Anhänge</legend>
+        {#if draft.attachments.length > 0}
+          <ul class="attachments">
+            {#each draft.attachments as attachment (attachment.id)}
+              <li>
+                <span class="name" title={attachment.name}>{attachment.name}</span>
+                <span class="muted">{formatBytes(attachment.size)}</span>
+                <button type="button" disabled={attachmentBusy} onclick={() => attachmentAction(() => store.openAttachment(attachment))}>
+                  Öffnen
+                </button>
+                <button type="button" disabled={attachmentBusy} onclick={() => attachmentAction(() => store.saveAttachmentAs(attachment))}>
+                  Speichern unter …
+                </button>
+                <button type="button" class="danger" onclick={() => removeAttachment(attachment)}>Entfernen</button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+        <div>
+          <button type="button" onclick={addAttachment} disabled={attachmentBusy}>
+            {attachmentBusy ? "Bitte warten …" : "+ Datei anhängen"}
+          </button>
+        </div>
+        {#if attachmentError}<p class="error">{attachmentError}</p>{/if}
+        <p class="hint">
+          Anhänge wie gescannte Policen werden verschlüsselt im Ordner "{store.attachmentFolderName}" neben der Datei
+          abgelegt. Diesen Ordner beim Sichern mitkopieren. Zum Öffnen legt die App eine entschlüsselte Kopie im
+          temporären Ordner ab und löscht sie beim Sperren.
+        </p>
+      </fieldset>
+
+      <fieldset>
         <legend>Im Todesfall</legend>
         <div class="grid">
           <label class="field">
@@ -284,6 +348,30 @@
     display: flex;
     align-items: flex-end;
     gap: 10px;
+  }
+  .attachments {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+  }
+  .attachments li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+  }
+  .attachments li + li {
+    border-top: 1px solid var(--border);
+  }
+  .attachments .name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   footer {
     display: flex;

@@ -42,6 +42,14 @@ pub enum VaultError {
     WrongPassphrase,
     #[error("Ein Export darf keine verschlüsselte .age-Datei überschreiben.")]
     ExportWouldOverwriteVault,
+    #[error("Der Schlüssel für die Anhänge ist ungültig.")]
+    InvalidKey,
+    #[error("Der Anhang wurde nicht gefunden. Liegt der Ordner mit den Anhängen neben der Datei?")]
+    AttachmentMissing,
+    #[error("Ungültige Kennung für einen Anhang.")]
+    InvalidAttachmentId,
+    #[error("Die Datei konnte nicht geöffnet werden: {0}")]
+    Open(String),
 }
 
 // Tauri gibt Fehler als Wert an das Frontend weiter; dort genügt der Text.
@@ -129,13 +137,17 @@ pub fn change_passphrase(
 /// dabei nie überschrieben, damit ein Export nicht versehentlich den
 /// Vorsorgeordner im Klartext ersetzt.
 pub fn write_export(path: &Path, vault_path: Option<&Path>, content: &str) -> Result<(), VaultError> {
+    write_export_bytes(path, vault_path, content.as_bytes())
+}
+
+pub fn write_export_bytes(path: &Path, vault_path: Option<&Path>, content: &[u8]) -> Result<(), VaultError> {
     let is_age = path
         .extension()
         .is_some_and(|ext| ext.eq_ignore_ascii_case("age") || ext.eq_ignore_ascii_case("bak"));
     if is_age || vault_path.is_some_and(|v| v == path) || looks_like_age_file(path) {
         return Err(VaultError::ExportWouldOverwriteVault);
     }
-    write_atomic(path, content.as_bytes(), false)?;
+    write_atomic(path, content, false)?;
     Ok(())
 }
 
@@ -161,7 +173,7 @@ pub fn backup_path(path: &Path) -> PathBuf {
 /// Mit `keep_backup` bleibt die vorherige Version als `<datei>.bak` erhalten.
 /// So geht bei einem Absturz während des Speicherns nie der letzte gültige
 /// Stand verloren.
-fn write_atomic(path: &Path, data: &[u8], keep_backup: bool) -> std::io::Result<()> {
+pub(crate) fn write_atomic(path: &Path, data: &[u8], keep_backup: bool) -> std::io::Result<()> {
     let tmp = sibling_with_suffix(path, ".tmp");
     {
         let mut file = File::create(&tmp)?;

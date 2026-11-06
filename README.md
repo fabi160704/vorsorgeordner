@@ -6,7 +6,7 @@ Alle Daten liegen verschlüsselt in einer einzigen Datei. Die Datei verwendet da
 
 ## Stand
 
-Version 0.2:
+Version 0.3:
 
 - Vorsorgeordner-Datei anlegen und mit Passphrase entsperren
 - Personen verwalten, mit Geburts- und Sterbedatum und freien Hinweisen
@@ -19,6 +19,9 @@ Version 0.2:
 - Export als unverschlüsseltes JSON (alle Daten) oder CSV (Tabelle für Excel)
 - Passphrase ändern
 - Automatisches Sperren nach einstellbarer Zeit ohne Eingabe, vorher wird gespeichert
+- Anhänge wie gescannte Policen, verschlüsselt in einem Ordner neben der Datei
+- Abwicklung nach einem Todesfall als Aufgabenliste: allgemeine erste Schritte mit Fristen und die Einträge der Person, sortiert nach Dringlichkeit
+- Laufzeitenden und Kündigungsfristen als Kalenderdatei (.ics)
 
 Konzept, Varianten und nächste Schritte stehen in [docs/konzept.md](docs/konzept.md).
 
@@ -64,7 +67,7 @@ Installer für das aktuelle Betriebssystem bauen (Ergebnis unter `src-tauri/targ
 npm run tauri build
 ```
 
-Installer für alle drei Betriebssysteme baut der GitHub-Workflow in `.github/workflows/build.yml`, sobald ein Tag wie `v0.2.0` gepusht wird.
+Installer für alle drei Betriebssysteme baut der GitHub-Workflow in `.github/workflows/build.yml`, sobald ein Tag wie `v0.3.0` gepusht wird.
 
 ## Aufbau
 
@@ -73,11 +76,14 @@ src/                    Oberfläche (Svelte 5, TypeScript)
   lib/model.ts          Datenmodell, Kategorien, Kostenberechnung
   lib/checklist.ts      Checkliste typischer Einträge
   lib/export.ts         Export als JSON und CSV
+  lib/estate.ts         Schritte und Aufgaben für die Abwicklung
+  lib/ics.ts            Kalenderdatei mit Fristen
   lib/state.svelte.ts   Zustand der geöffneten Datei
   lib/backend.ts        Aufrufe an den Rust-Teil, Browser-Vorschau
   components/           Ansichten und Formulare
 src-tauri/              Desktop-Hülle (Tauri 2, Rust)
   src/vault.rs          Verschlüsselung (age/scrypt) und sicheres Speichern
+  src/attachments.rs    Verschlüsselte Anhänge
   src/lib.rs            Befehle, die die Oberfläche aufrufen kann
 docs/                   Konzept und Datenformat
 ```
@@ -89,6 +95,7 @@ docs/                   Konzept und Datenformat
 - Beim Speichern bleibt die vorherige Version als `<datei>.age.bak` erhalten.
 - Nach 15 Minuten ohne Eingabe sperrt sich die App. Die Zeit lässt sich in den Einstellungen ändern.
 - Exporte sind unverschlüsselt. Die App warnt davor und überschreibt dabei nie eine `.age`-Datei.
+- Anhänge liegen verschlüsselt im Ordner `<Dateiname>.anhaenge` neben der Datei. Beim Sichern beides kopieren.
 - `*.age`-Dateien sind per `.gitignore` vom Repository ausgeschlossen.
 
 Das App-Symbol entsteht aus `app-icon.svg` mit `npx tauri icon app-icon.svg -o src-tauri/icons`.

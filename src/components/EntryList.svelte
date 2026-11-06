@@ -108,6 +108,9 @@
             <span class="muted">{personNames(entry)}</span>
           </span>
           <span class="death">
+            {#if entry.attachments.length > 0}
+              <span class="tag">{entry.attachments.length} {entry.attachments.length === 1 ? "Anhang" : "Anhänge"}</span>
+            {/if}
             {#if entry.deathAction}
               <span class="tag">{deathActionLabel(entry.deathAction)}</span>
             {/if}

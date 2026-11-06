@@ -59,6 +59,7 @@
       ["Im Todesfall", [entry.deathAction && deathActionLabel(entry.deathAction), entry.deathNotes].filter(Boolean).join(": ")],
       ["Abwicklung", entry.status !== "offen" || entry.statusNotes ? [statusLabel(entry.status), entry.statusNotes].filter(Boolean).join(": ") : ""],
       ["Notizen", entry.notes],
+      ["Anhänge", entry.attachments.map((a) => a.name).join(", ")],
     ];
     return all.filter(([, value]) => value);
   }

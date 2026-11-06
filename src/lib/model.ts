@@ -79,6 +79,14 @@ export interface Person {
   notes: string;
 }
 
+/** Verweis auf eine verschlüsselte Datei im Ordner `<Dateiname>.anhaenge`. */
+export interface Attachment {
+  id: string;
+  name: string;
+  size: number;
+  addedAt: string;
+}
+
 export interface Entry {
   id: string;
   category: Category;
@@ -109,6 +117,7 @@ export interface Entry {
   statusNotes: string;
   notes: string;
   lastReviewed: string;
+  attachments: Attachment[];
   createdAt: string;
   updatedAt: string;
 }
@@ -131,6 +140,10 @@ export interface Vault {
   entries: Entry[];
   /** Punkte der Checkliste, die als "trifft nicht zu" markiert sind (siehe checklist.ts). */
   dismissedSuggestions: string[];
+  /** Stand der allgemeinen Schritte nach einem Todesfall, Schlüssel "<schritt>:<personId>" (siehe estate.ts). */
+  estateSteps: Record<string, SettlementStatus>;
+  /** age-Schlüssel (X25519) für die Anhänge. Leer, solange es keine Anhänge gibt. */
+  attachmentKey: string;
 }
 
 export function newId(): string {
@@ -156,6 +169,8 @@ export function emptyVault(): Vault {
     persons: [],
     entries: [],
     dismissedSuggestions: [],
+    estateSteps: {},
+    attachmentKey: "",
   };
 }
 
@@ -188,6 +203,7 @@ export function newEntry(fields: Partial<Entry> = {}): Entry {
     statusNotes: "",
     notes: "",
     lastReviewed: "",
+    attachments: [],
     createdAt: now,
     updatedAt: now,
     ...fields,
@@ -217,11 +233,27 @@ export function parseVault(json: string): Vault {
     updatedAt: raw.updatedAt ?? base.updatedAt,
     settings: { ...DEFAULT_SETTINGS, ...(typeof raw.settings === "object" ? raw.settings : {}) },
     persons: Array.isArray(raw.persons) ? raw.persons.map((p) => newPerson(p)) : [],
-    entries: Array.isArray(raw.entries) ? raw.entries.map((e) => newEntry(e)) : [],
+    entries: Array.isArray(raw.entries)
+      ? raw.entries.map((e) => {
+          const entry = newEntry(e);
+          if (!Array.isArray(entry.attachments)) entry.attachments = [];
+          return entry;
+        })
+      : [],
     dismissedSuggestions: Array.isArray(raw.dismissedSuggestions)
       ? raw.dismissedSuggestions.filter((k): k is string => typeof k === "string")
       : [],
+    estateSteps: parseEstateSteps(raw.estateSteps),
+    attachmentKey: typeof raw.attachmentKey === "string" ? raw.attachmentKey : "",
   };
+}
+
+function parseEstateSteps(value: unknown): Record<string, SettlementStatus> {
+  if (typeof value !== "object" || value === null) return {};
+  const valid = new Set<string>(SETTLEMENT_STATUS.map((s) => s.id));
+  return Object.fromEntries(
+    Object.entries(value).filter((pair): pair is [string, SettlementStatus] => valid.has(pair[1] as string)),
+  );
 }
 
 export function serializeVault(vault: Vault): string {
@@ -269,6 +301,13 @@ export function formatCents(cents: number): string {
 export function centsToInput(cents: number | null): string {
   if (cents === null) return "";
   return (cents / 100).toFixed(2).replace(".", ",");
+}
+
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${Math.round(kb)} KB`;
+  return `${(kb / 1024).toFixed(1).replace(".", ",")} MB`;
 }
 
 export function formatDate(iso: string): string {

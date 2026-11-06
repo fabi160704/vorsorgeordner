@@ -32,7 +32,9 @@ Der entschlüsselte Inhalt ist ein JSON-Dokument:
   "settings": { "autoLockMinutes": 15 },
   "persons": [ ... ],
   "entries": [ ... ],
-  "dismissedSuggestions": [ "hausrat", "testament:<Personen-ID>" ]
+  "dismissedSuggestions": [ "hausrat", "testament:<Personen-ID>" ],
+  "estateSteps": { "standesamt:<Personen-ID>": "erledigt" },
+  "attachmentKey": "AGE-SECRET-KEY-1..."
 }
 ```
 
@@ -40,7 +42,9 @@ Leere Felder sind leere Zeichenketten. Datumsangaben haben die Form `JJJJ-MM-TT`
 
 `settings.autoLockMinutes` ist die Zeit ohne Eingabe bis zum automatischen Sperren, `0` heißt nie. `dismissedSuggestions` enthält die Punkte der Checkliste, die als "trifft nicht zu" markiert sind: die Kennung des Vorschlags (siehe `src/lib/checklist.ts`), bei Punkten für eine Person gefolgt von `:` und der Personen-ID. Beide Felder kamen mit Version 0.2 hinzu und fehlen in älteren Dateien.
 
-Der JSON-Export der App hat genau dieses Format, ist aber unverschlüsselt.
+`estateSteps` enthält den Stand der allgemeinen Schritte nach einem Todesfall (siehe `src/lib/estate.ts`), `attachmentKey` den Schlüssel für die Anhänge. Beide kamen mit Version 0.3 hinzu.
+
+Der JSON-Export der App hat genau dieses Format, ist aber unverschlüsselt. Er enthält deshalb auch den Schlüssel für die Anhänge.
 
 ### Person
 
@@ -77,7 +81,24 @@ Der JSON-Export der App hat genau dieses Format, ist aber unverschlüsselt.
 | `statusNotes` | Notiz zur Abwicklung |
 | `notes` | Freie Notizen |
 | `lastReviewed` | Datum der letzten Prüfung |
+| `attachments` | Anhänge: Liste mit `id`, `name` (ursprünglicher Dateiname), `size` (Bytes) und `addedAt` |
 | `createdAt`, `updatedAt` | Zeitstempel |
+
+## Anhänge
+
+Anhänge liegen im Ordner `<Dateiname>.anhaenge` neben der Datei, zum Beispiel `Vorsorgeordner.anhaenge` neben `Vorsorgeordner.age`. Jeder Anhang ist eine eigene Datei `<id>.age`. Den ursprünglichen Dateinamen findet man im JSON-Dokument unter `entries[].attachments[]`.
+
+Die Anhänge sind nicht mit der Passphrase verschlüsselt, sondern mit dem Schlüssel aus `attachmentKey`. So öffnet man einen Anhang ohne die App:
+
+1. Den Vorsorgeordner wie oben entschlüsseln.
+2. Den Wert von `attachmentKey` (beginnt mit `AGE-SECRET-KEY-1`) in eine Textdatei `schluessel.txt` kopieren.
+3. Den Anhang entschlüsseln:
+
+```bash
+age --decrypt -i schluessel.txt -o Police.pdf Vorsorgeordner.anhaenge/<id>.age
+```
+
+Getestet mit age 1.1.1. Die Datei `schluessel.txt` öffnet alle Anhänge und sollte danach gelöscht werden.
 
 ## Versionen
 

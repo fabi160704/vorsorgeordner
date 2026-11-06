@@ -18,7 +18,16 @@ export interface Backend {
   save(content: string): Promise<void>;
   changePassphrase(current: string, next: string, content: string): Promise<void>;
   /** Fragt nach einem Speicherort und schreibt den Text unverschlüsselt. Gibt den Pfad zurück oder null bei Abbruch. */
-  exportPlain(fileName: string, extension: "json" | "csv", content: string): Promise<string | null>;
+  exportPlain(fileName: string, extension: "json" | "csv" | "ics", content: string): Promise<string | null>;
+  /** Wählt eine Datei, die als Anhang verschlüsselt werden soll. */
+  pickAttachmentSource(): Promise<string | null>;
+  attachmentNewKey(): Promise<string>;
+  /** Verschlüsselt die Datei als Anhang `id` und gibt die Größe in Bytes zurück. */
+  attachmentAdd(key: string, id: string, source: string): Promise<number>;
+  attachmentOpen(key: string, id: string, name: string): Promise<void>;
+  /** Fragt nach einem Speicherort und legt dort eine entschlüsselte Kopie ab. */
+  attachmentSaveAs(key: string, id: string, name: string): Promise<string | null>;
+  attachmentPrune(keep: string[]): Promise<void>;
   close(): Promise<void>;
   confirm(message: string): Promise<boolean>;
   print(): Promise<void>;
@@ -56,6 +65,28 @@ const tauriBackend: Backend = {
     await invoke("export_plain", { path, content });
     return path;
   },
+  async pickAttachmentSource() {
+    const path = await openDialog({ multiple: false, directory: false });
+    return typeof path === "string" ? path : null;
+  },
+  attachmentNewKey() {
+    return invoke<string>("attachment_new_key");
+  },
+  attachmentAdd(key, id, source) {
+    return invoke<number>("attachment_add", { key, id, source });
+  },
+  attachmentOpen(key, id, name) {
+    return invoke("attachment_open", { key, id, name });
+  },
+  async attachmentSaveAs(key, id, name) {
+    const target = await saveDialog({ defaultPath: name });
+    if (!target) return null;
+    await invoke("attachment_save_as", { key, id, target });
+    return target;
+  },
+  async attachmentPrune(keep) {
+    await invoke("attachment_prune", { keep });
+  },
   close() {
     return invoke("vault_close");
   },
@@ -66,6 +97,18 @@ const tauriBackend: Backend = {
     return invoke("print_page");
   },
 };
+
+const previewFiles = new Map<string, File>();
+const previewAttachments = new Map<string, Blob>();
+
+function download(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
 
 const previewBackend: Backend = {
   isPreview: true,
@@ -83,14 +126,49 @@ const previewBackend: Backend = {
   async changePassphrase() {},
   async exportPlain(fileName, extension, content) {
     // In der Vorschau als Download, damit sich der Export prüfen lässt.
-    const type = extension === "json" ? "application/json" : "text/csv";
-    const url = URL.createObjectURL(new Blob([content], { type }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = fileName;
-    link.click();
-    URL.revokeObjectURL(url);
+    const types = { json: "application/json", csv: "text/csv", ics: "text/calendar" };
+    download(new Blob([content], { type: types[extension] }), fileName);
     return fileName;
+  },
+  pickAttachmentSource() {
+    // In der Vorschau über ein Dateifeld; die Datei bleibt nur im Speicher.
+    return new Promise((resolve) => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.onchange = () => {
+        const file = input.files?.[0];
+        if (!file) return resolve(null);
+        const path = `vorschau/${previewFiles.size}/${file.name}`;
+        previewFiles.set(path, file);
+        resolve(path);
+      };
+      input.click();
+    });
+  },
+  async attachmentNewKey() {
+    return "AGE-SECRET-KEY-1VORSCHAU";
+  },
+  async attachmentAdd(_key, id, source) {
+    const file = previewFiles.get(source);
+    if (!file) throw new Error("Datei nicht gefunden.");
+    previewAttachments.set(id, file);
+    return file.size;
+  },
+  async attachmentOpen(_key, id) {
+    const file = previewAttachments.get(id);
+    if (!file) throw new Error("Der Anhang wurde nicht gefunden.");
+    window.open(URL.createObjectURL(file), "_blank");
+  },
+  async attachmentSaveAs(_key, id, name) {
+    const file = previewAttachments.get(id);
+    if (!file) throw new Error("Der Anhang wurde nicht gefunden.");
+    download(file, name);
+    return name;
+  },
+  async attachmentPrune(keep) {
+    for (const id of [...previewAttachments.keys()]) {
+      if (!keep.includes(id)) previewAttachments.delete(id);
+    }
   },
   async close() {},
   async confirm(message) {

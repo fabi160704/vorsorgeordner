@@ -38,6 +38,7 @@ const COLUMNS: [string, (e: Entry, names: (e: Entry) => string) => string][] = [
   ["Notiz Abwicklung", (e) => e.statusNotes],
   ["Notizen", (e) => e.notes],
   ["Zuletzt geprüft", (e) => formatDate(e.lastReviewed)],
+  ["Anhänge", (e) => e.attachments.map((a) => a.name).join(", ")],
 ];
 
 function csvField(value: string): string {
