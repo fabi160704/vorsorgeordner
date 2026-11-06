@@ -133,16 +133,40 @@ Die Übersicht exportiert eine Kalenderdatei (.ics) mit allen künftigen Laufzei
 
 Umgesetzt in Version 0.2: Checkliste, Passphrase ändern, automatisches Sperren, Export als JSON und CSV.
 
-Umgesetzt in Version 0.3: Anhänge, Kalenderdatei mit Fristen, Abwicklung als Aufgabenliste.
+Umgesetzt in Version 0.3: Anhänge, Kalenderdatei mit Fristen, Abwicklung als Aufgabenliste. Version 0.3.1: automatisches Speichern.
 
-Später:
+Leitlinie für die nächsten Versionen: Die App fragt, statt leere Formulare zu zeigen, und zeigt weniger auf einmal. Stand 0.3.1 öffnet jeder Eintrag ein Formular mit rund 25 Feldern, nach dem Anlegen steht man vor einer leeren Liste, und es gibt fünf Tabs und einen Einstellungsdialog.
 
+### Version 0.4: einfacher erfassen
+
+| Änderung | Was es einfacher macht | Aufwand |
+| --- | --- | --- |
+| Assistent beim ersten Start | Fragt zuerst, wer zum Haushalt gehört, und stellt dann die Punkte der Checkliste als einzelne Fragen ("Habt ihr eine Hausratversicherung?" mit Ja, Nein, Später). Bei Ja erscheinen nur Anbieter, Nummer und Betrag. Fortschrittsbalken, jederzeit unterbrechbar. | mittel |
+| Kurzes Formular je Kategorie | Drei oder vier Felder mit passenden Namen, z. B. "Versicherungsnummer" statt "Vertrags-, Mitglieds- oder Kundennummer". Alles andere hinter "Mehr Angaben". | klein |
+| Sinnvolle Vorbelegung | Die Aktion im Todesfall ist schon gewählt: Abo kündigen, Strom umschreiben, Lebensversicherung "Leistung beantragen". | klein |
+| Dokument ins Fenster ziehen | Eine PDF-Police ins Fenster ziehen legt einen Eintrag mit Anhang an, der Titel kommt aus dem Dateinamen. | klein |
+| Kontoauszug-Import | CSV- oder CAMT-Datei aus dem Online-Banking laden. Die App erkennt wiederkehrende Lastschriften und zeigt sie als Liste zum Abhaken. | groß |
+
+Der Import spart die meiste Zeit, braucht aber echte Beispieldateien, weil jede Bank ein anderes Format exportiert. Vorgeschlagene Reihenfolge: Assistent, kurzes Formular und Vorbelegung zuerst, der Import, sobald anonymisierte Exporte mehrerer Banken vorliegen.
+
+### Version 0.5: einfacher pflegen und übergeben
+
+- Eine Startseite ersetzt Übersicht und Checkliste. Sie zeigt, wie vollständig der Ordner ist, die nächsten Fristen, die Kosten pro Monat und einen Knopf "Weiter erfassen". Drucken und Export wandern in ein Menü. Übrig bleiben die Tabs Start, Einträge und, nur wenn nötig, Abwicklung.
+- Jahres-Check als kurzer Durchlauf: Zu jedem Eintrag fragt die App "Stimmt das noch?" mit Ja, Ändern oder Gibt es nicht mehr. Die Kalenderdatei bekommt dafür einen jährlichen Termin.
+- Notfallblatt zum Ausdrucken, eine Seite für die Unterlagen: wo die Datei liegt, wo die Passphrase hinterlegt ist, wen man anruft und wie man die Datei öffnet.
+- "Auf diesem Gerät merken" über den Schlüsselbund des Betriebssystems, damit man die lange Passphrase am eigenen Rechner nicht nach jedem Sperren eintippen muss. Auf anderen Geräten und für Angehörige bleibt die Passphrase nötig.
+- Rückgängig statt Nachfrage: Nach dem Löschen erscheint ein Hinweis mit "Rückgängig".
+- Suche über alles mit Strg+K.
+
+### Später
+
+- Liste häufiger Anbieter (Krankenkassen, Versicherer, Banken), die Kontakt und Kündigungsadresse vorfüllt
+- Policen mit dem Handy fotografieren und an den Rechner übergeben; Smartphone-Version zum Nachschlagen (Tauri 2 unterstützt Android und iOS)
+- Einstellbare Schriftgröße für ältere Nutzer
 - Schlüssel für die Anhänge erneuern, z. B. nach dem Ändern der Passphrase
 - Laufzeitende bei automatischer Verlängerung selbst fortschreiben
-
 - Zusätzlicher Notfallschlüssel: age erlaubt mehrere Empfänger. Neben der Passphrase könnte ein auf Papier gedruckter Schlüssel die Datei öffnen.
 - Erkennen, wenn die Datei in einem Cloud-Ordner gleichzeitig von zwei Geräten geändert wurde
-- Smartphone-Version zum Nachschlagen (Tauri 2 unterstützt Android und iOS)
 
 ## Offene Fragen
 
