@@ -6,7 +6,7 @@ Alle Daten liegen verschlüsselt in einer einzigen Datei. Die Datei verwendet da
 
 ## Stand
 
-Version 0.3:
+Version 0.3.1:
 
 - Vorsorgeordner-Datei anlegen und mit Passphrase entsperren
 - Personen verwalten, mit Geburts- und Sterbedatum und freien Hinweisen
@@ -68,7 +68,7 @@ Installer für das aktuelle Betriebssystem bauen (Ergebnis unter `src-tauri/targ
 npm run tauri build
 ```
 
-Installer für alle drei Betriebssysteme baut der GitHub-Workflow in `.github/workflows/build.yml`, sobald ein Tag wie `v0.3.0` gepusht wird.
+Installer für alle drei Betriebssysteme baut der GitHub-Workflow in `.github/workflows/build.yml`, sobald ein Tag wie `v0.3.1` gepusht wird.
 
 ## Aufbau
 
