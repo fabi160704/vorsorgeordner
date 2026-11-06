@@ -1,0 +1,292 @@
+<script lang="ts">
+  import { onMount } from "svelte";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
+  import { backend, errorMessage } from "../lib/backend";
+  import { store } from "../lib/state.svelte";
+  import { belongsTo, newEntry, newPerson, type Entry, type Person } from "../lib/model";
+  import EntryForm from "./EntryForm.svelte";
+  import EntryList from "./EntryList.svelte";
+  import Overview from "./Overview.svelte";
+  import PersonForm from "./PersonForm.svelte";
+  import PrintView from "./PrintView.svelte";
+
+  type View = "eintraege" | "uebersicht" | "druck";
+
+  let view = $state<View>("eintraege");
+  let selectedPersonId = $state<string | null>(null);
+  let editingEntry = $state<Entry | null>(null);
+  let editingPerson = $state<Person | null>(null);
+
+  const vault = $derived(store.vault!);
+  const selectedPerson = $derived(vault.persons.find((p) => p.id === selectedPersonId) ?? null);
+  const visibleEntries = $derived(vault.entries.filter((e) => belongsTo(e, selectedPersonId)));
+  const fileName = $derived(store.path?.split(/[\\/]/).pop() ?? "");
+
+  async function save() {
+    try {
+      await store.save();
+    } catch (err) {
+      store.lastError = `Speichern fehlgeschlagen: ${errorMessage(err)}`;
+    }
+  }
+
+  async function lock() {
+    if (store.dirty && !(await backend.confirm("Es gibt ungespeicherte Änderungen. Trotzdem sperren?"))) return;
+    await store.close();
+  }
+
+  function addEntry() {
+    editingEntry = newEntry({ personIds: selectedPersonId ? [selectedPersonId] : [] });
+  }
+
+  function onKeydown(event: KeyboardEvent) {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+      event.preventDefault();
+      save();
+    }
+  }
+
+  onMount(() => {
+    if (backend.isPreview) return;
+    // Fenster nicht schließen, solange Änderungen ungespeichert sind.
+    const unlisten = getCurrentWindow().onCloseRequested(async (event) => {
+      if (store.dirty && !(await backend.confirm("Es gibt ungespeicherte Änderungen. Trotzdem beenden?"))) {
+        event.preventDefault();
+      }
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  });
+</script>
+
+<svelte:window onkeydown={onKeydown} />
+
+<div class="layout">
+  <aside class="sidebar no-print">
+    <div class="brand">Vorsorgeordner</div>
+    <nav>
+      <button class:active={selectedPersonId === null} onclick={() => (selectedPersonId = null)}>
+        Alle Personen
+      </button>
+      {#each vault.persons as person (person.id)}
+        <button class:active={selectedPersonId === person.id} onclick={() => (selectedPersonId = person.id)}>
+          {person.name || "Ohne Namen"}
+          {#if person.deathDate}<span class="tag">verstorben</span>{/if}
+        </button>
+      {/each}
+    </nav>
+    <button class="ghost" onclick={() => (editingPerson = newPerson())}>+ Person hinzufügen</button>
+  </aside>
+
+  <div class="main">
+    <header class="topbar no-print">
+      <div class="title">
+        <h2>{selectedPerson?.name || "Alle Personen"}</h2>
+        {#if selectedPerson}
+          <button class="link" onclick={() => (editingPerson = selectedPerson)}>Person bearbeiten</button>
+        {/if}
+      </div>
+      <div class="actions">
+        <span class="file" title={store.path ?? ""}>
+          {fileName}{#if store.dirty}<span class="dirty">{" · ungespeichert"}</span>{/if}
+        </span>
+        <button class="primary" onclick={save} disabled={!store.dirty || store.saving}>
+          {store.saving ? "Speichert …" : "Speichern"}
+        </button>
+        <button onclick={lock}>Sperren</button>
+      </div>
+    </header>
+
+    {#if store.lastError}
+      <p class="error banner no-print">{store.lastError}</p>
+    {/if}
+    {#if backend.isPreview}
+      <p class="notice banner no-print">Browser-Vorschau: Änderungen werden nicht gespeichert.</p>
+    {/if}
+
+    <div class="views no-print" role="tablist">
+      <button role="tab" aria-selected={view === "eintraege"} onclick={() => (view = "eintraege")}>Einträge</button>
+      <button role="tab" aria-selected={view === "uebersicht"} onclick={() => (view = "uebersicht")}>Übersicht</button>
+      <button role="tab" aria-selected={view === "druck"} onclick={() => (view = "druck")}>Druckansicht</button>
+    </div>
+
+    <section class="content">
+      {#if view === "eintraege"}
+        <EntryList
+          entries={visibleEntries}
+          persons={vault.persons}
+          showStatus={selectedPerson ? !!selectedPerson.deathDate : vault.persons.some((p) => p.deathDate)}
+          onedit={(entry) => (editingEntry = entry)}
+          onadd={addEntry}
+        />
+      {:else if view === "uebersicht"}
+        <Overview entries={visibleEntries} persons={vault.persons} onedit={(entry) => (editingEntry = entry)} />
+      {:else}
+        <PrintView entries={visibleEntries} persons={vault.persons} person={selectedPerson} />
+      {/if}
+    </section>
+  </div>
+</div>
+
+{#if editingEntry}
+  {#key editingEntry.id}
+    <EntryForm
+      entry={editingEntry}
+      isNew={!vault.entries.some((e) => e.id === editingEntry?.id)}
+      persons={vault.persons}
+      onsave={(entry) => {
+        store.upsertEntry(entry);
+        editingEntry = null;
+      }}
+      ondelete={(id) => {
+        store.deleteEntry(id);
+        editingEntry = null;
+      }}
+      onclose={() => (editingEntry = null)}
+    />
+  {/key}
+{/if}
+
+{#if editingPerson}
+  {#key editingPerson.id}
+    <PersonForm
+      person={editingPerson}
+      isNew={!vault.persons.some((p) => p.id === editingPerson?.id)}
+      onsave={(person) => {
+        store.upsertPerson(person);
+        selectedPersonId = person.id;
+        editingPerson = null;
+      }}
+      ondelete={(id) => {
+        store.deletePerson(id);
+        selectedPersonId = null;
+        editingPerson = null;
+      }}
+      onclose={() => (editingPerson = null)}
+    />
+  {/key}
+{/if}
+
+<style>
+  .layout {
+    display: grid;
+    grid-template-columns: 230px 1fr;
+    min-height: 100vh;
+  }
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .brand {
+    font-weight: 700;
+    padding: 4px 8px 8px;
+  }
+  nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  nav button {
+    text-align: left;
+    border: none;
+    background: none;
+    padding: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
+  }
+  nav button:hover {
+    background: var(--hover);
+  }
+  nav button.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .title {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .title h2 {
+    margin: 0;
+  }
+  .actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .file {
+    color: var(--muted);
+    font-size: 0.9em;
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .dirty {
+    color: var(--warn);
+  }
+  .banner {
+    margin: 12px 24px 0;
+  }
+  .views {
+    display: flex;
+    gap: 4px;
+    padding: 12px 24px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .views button {
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: none;
+    padding: 8px 12px;
+  }
+  .views button[aria-selected="true"] {
+    border-bottom-color: var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .content {
+    padding: 20px 24px 40px;
+  }
+  @media (max-width: 760px) {
+    .layout {
+      grid-template-columns: 1fr;
+    }
+    .sidebar {
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+    }
+  }
+  @media print {
+    .layout {
+      display: block;
+    }
+    .content {
+      padding: 0;
+    }
+  }
+</style>
