@@ -6,7 +6,7 @@ Alle Daten liegen verschlüsselt in einer einzigen Datei. Die Datei verwendet da
 
 ## Stand
 
-Version 0.3:
+Version 0.3.1:
 
 - Vorsorgeordner-Datei anlegen und mit Passphrase entsperren
 - Personen verwalten, mit Geburts- und Sterbedatum und freien Hinweisen
@@ -19,6 +19,7 @@ Version 0.3:
 - Export als unverschlüsseltes JSON (alle Daten) oder CSV (Tabelle für Excel)
 - Passphrase ändern
 - Automatisches Sperren nach einstellbarer Zeit ohne Eingabe, vorher wird gespeichert
+- Automatisches Speichern wenige Sekunden nach der letzten Änderung, abschaltbar
 - Anhänge wie gescannte Policen, verschlüsselt in einem Ordner neben der Datei
 - Abwicklung nach einem Todesfall als Aufgabenliste: allgemeine erste Schritte mit Fristen und die Einträge der Person, sortiert nach Dringlichkeit
 - Laufzeitenden und Kündigungsfristen als Kalenderdatei (.ics)
@@ -67,7 +68,7 @@ Installer für das aktuelle Betriebssystem bauen (Ergebnis unter `src-tauri/targ
 npm run tauri build
 ```
 
-Installer für alle drei Betriebssysteme baut der GitHub-Workflow in `.github/workflows/build.yml`, sobald ein Tag wie `v0.3.0` gepusht wird.
+Installer für alle drei Betriebssysteme baut der GitHub-Workflow in `.github/workflows/build.yml`, sobald ein Tag wie `v0.3.1` gepusht wird.
 
 ## Aufbau
 
@@ -92,7 +93,7 @@ docs/                   Konzept und Datenformat
 
 - Die Datei ist mit der Passphrase verschlüsselt. Ohne Passphrase kommt niemand an die Daten, auch nicht Angehörige. Die Passphrase sollte deshalb auf Papier hinterlegt werden, zum Beispiel bei Testament oder Vorsorgevollmacht.
 - Die App speichert Hinweise, wo Zugangsdaten liegen, aber keine Passwörter. Passwörter gehören in einen Passwortmanager mit Notfallzugang.
-- Beim Speichern bleibt die vorherige Version als `<datei>.age.bak` erhalten.
+- Die Sicherungskopie `<datei>.age.bak` enthält den Stand vom Öffnen der Datei. Sie wird beim ersten Speichern einer Sitzung geschrieben und danach nicht mehr überschrieben.
 - Nach 15 Minuten ohne Eingabe sperrt sich die App. Die Zeit lässt sich in den Einstellungen ändern.
 - Exporte sind unverschlüsselt. Die App warnt davor und überschreibt dabei nie eine `.age`-Datei.
 - Anhänge liegen verschlüsselt im Ordner `<Dateiname>.anhaenge` neben der Datei. Beim Sichern beides kopieren.

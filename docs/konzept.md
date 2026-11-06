@@ -80,7 +80,7 @@ Alle Kategorien haben dieselben Felder. Nicht benötigte Felder bleiben leer. Da
 
 - Verschlüsselung mit age und scrypt. scrypt braucht beim Öffnen und Speichern bewusst etwa eine Sekunde, damit Passphrasen nicht schnell durchprobiert werden können.
 - Die Passphrase bleibt nach dem Entsperren nur im Rust-Teil der App und wird beim Sperren verworfen.
-- Gespeichert wird über eine temporäre Datei, die erst nach vollständigem Schreiben das Original ersetzt. Die vorige Version bleibt als `.bak` erhalten.
+- Gespeichert wird über eine temporäre Datei, die erst nach vollständigem Schreiben das Original ersetzt. Die Sicherung `.bak` enthält den Stand vom Öffnen der Datei; beim automatischen Speichern alle paar Sekunden wird sie nicht jedes Mal überschrieben.
 - Die App speichert keine Passwörter, sondern nur Hinweise, wo sie zu finden sind. Für Passwörter eignet sich ein Passwortmanager mit Notfallzugang, der Angehörigen nach einer Wartezeit Zugriff gibt.
 - Nach einer einstellbaren Zeit ohne Eingabe (Standard 15 Minuten) speichert die App und sperrt sich.
 - Beim Ändern der Passphrase wird auch die Sicherungskopie `.bak` neu verschlüsselt. Kopien außerhalb der App, etwa im Versionsverlauf eines Cloud-Ordners, bleiben mit der alten Passphrase lesbar.

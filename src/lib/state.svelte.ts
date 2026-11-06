@@ -37,6 +37,8 @@ class Store {
   recentPath = $state<string | null>(readRecent());
   dirty = $state(false);
   saving = $state(false);
+  /** Zählt jede Änderung. Damit erkennt save(), ob während des Speicherns weiter geändert wurde. */
+  changes = $state(0);
   lastError = $state<string | null>(null);
   /** Hinweis auf dem Entsperr-Bildschirm, z. B. nach automatischem Sperren. */
   lockMessage = $state<string | null>(null);
@@ -68,13 +70,21 @@ class Store {
     writeRecent(path);
   }
 
+  /** Markiert den Vorsorgeordner als geändert. */
+  private touch() {
+    this.dirty = true;
+    this.changes += 1;
+  }
+
   async save() {
     if (!this.vault || this.saving) return;
     this.saving = true;
+    const revision = this.changes;
     try {
       this.vault.updatedAt = nowIso();
       await backend.save(serializeVault($state.snapshot(this.vault) as Vault));
-      this.dirty = false;
+      // Änderungen während des Speicherns bleiben als ungespeichert markiert.
+      this.dirty = this.changes !== revision;
       this.lastError = null;
     } finally {
       this.saving = false;
@@ -108,7 +118,7 @@ class Store {
     if (!this.vault) throw new Error("Es ist kein Vorsorgeordner geöffnet.");
     if (!this.vault.attachmentKey) {
       this.vault.attachmentKey = await backend.attachmentNewKey();
-      this.dirty = true;
+      this.touch();
     }
     const id = newId();
     this.pendingAttachments.add(id);
@@ -130,13 +140,13 @@ class Store {
     entry.status = status;
     if (statusNotes !== undefined) entry.statusNotes = statusNotes;
     entry.updatedAt = nowIso();
-    this.dirty = true;
+    this.touch();
   }
 
   setEstateStep(key: string, status: SettlementStatus) {
     if (!this.vault || this.vault.estateSteps[key] === status) return;
     this.vault.estateSteps[key] = status;
-    this.dirty = true;
+    this.touch();
   }
 
   async close(message: string | null = null) {
@@ -153,10 +163,11 @@ class Store {
   async changePassphrase(current: string, next: string) {
     if (!this.vault) return;
     this.saving = true;
+    const revision = this.changes;
     try {
       this.vault.updatedAt = nowIso();
       await backend.changePassphrase(current, next, serializeVault($state.snapshot(this.vault) as Vault));
-      this.dirty = false;
+      this.dirty = this.changes !== revision;
     } finally {
       this.saving = false;
     }
@@ -166,10 +177,20 @@ class Store {
     return this.vault ? ($state.snapshot(this.vault) as Vault) : null;
   }
 
+  setAutoSave(enabled: boolean) {
+    if (!this.vault || this.vault.settings.autoSave === enabled) return;
+    this.vault.settings.autoSave = enabled;
+    this.touch();
+  }
+
+  get autoSave(): boolean {
+    return this.vault?.settings.autoSave ?? false;
+  }
+
   setAutoLock(minutes: number) {
     if (!this.vault || this.vault.settings.autoLockMinutes === minutes) return;
     this.vault.settings.autoLockMinutes = minutes;
-    this.dirty = true;
+    this.touch();
   }
 
   /** Markiert einen Punkt der Checkliste als "trifft nicht zu" oder nimmt die Markierung zurück. */
@@ -177,7 +198,7 @@ class Store {
     if (!this.vault) return;
     const list = this.vault.dismissedSuggestions;
     this.vault.dismissedSuggestions = list.includes(key) ? list.filter((k) => k !== key) : [...list, key];
-    this.dirty = true;
+    this.touch();
   }
 
   upsertEntry(entry: Entry) {
@@ -186,13 +207,13 @@ class Store {
     const index = this.vault.entries.findIndex((e) => e.id === entry.id);
     if (index >= 0) this.vault.entries[index] = updated;
     else this.vault.entries.push(updated);
-    this.dirty = true;
+    this.touch();
   }
 
   deleteEntry(id: string) {
     if (!this.vault) return;
     this.vault.entries = this.vault.entries.filter((e) => e.id !== id);
-    this.dirty = true;
+    this.touch();
   }
 
   upsertPerson(person: Person) {
@@ -200,7 +221,7 @@ class Store {
     const index = this.vault.persons.findIndex((p) => p.id === person.id);
     if (index >= 0) this.vault.persons[index] = person;
     else this.vault.persons.push(person);
-    this.dirty = true;
+    this.touch();
   }
 
   /** Entfernt die Person. Ihre Einträge bleiben erhalten und verlieren nur die Zuordnung. */
@@ -210,7 +231,7 @@ class Store {
     for (const entry of this.vault.entries) {
       entry.personIds = entry.personIds.filter((pid) => pid !== id);
     }
-    this.dirty = true;
+    this.touch();
   }
 }
 

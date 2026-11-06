@@ -125,11 +125,16 @@ export interface Entry {
 export interface Settings {
   /** Minuten ohne Eingabe bis zum automatischen Sperren, 0 = aus. */
   autoLockMinutes: number;
+  /** Änderungen wenige Sekunden nach der letzten Eingabe selbst speichern. */
+  autoSave: boolean;
 }
 
 export const AUTO_LOCK_OPTIONS = [0, 2, 5, 10, 15, 30, 60];
 
-export const DEFAULT_SETTINGS: Settings = { autoLockMinutes: 15 };
+export const DEFAULT_SETTINGS: Settings = { autoLockMinutes: 15, autoSave: true };
+
+/** Wartezeit nach der letzten Änderung, bevor automatisch gespeichert wird. */
+export const AUTO_SAVE_DELAY_MS = 3000;
 
 export interface Vault {
   formatVersion: number;

@@ -4,7 +4,7 @@
   import { backend, errorMessage } from "../lib/backend";
   import { store } from "../lib/state.svelte";
   import type { ChecklistItem } from "../lib/checklist";
-  import { belongsTo, newEntry, newPerson, type Entry, type Person } from "../lib/model";
+  import { AUTO_SAVE_DELAY_MS, belongsTo, newEntry, newPerson, type Entry, type Person } from "../lib/model";
   import Checklist from "./Checklist.svelte";
   import Estate from "./Estate.svelte";
   import EntryForm from "./EntryForm.svelte";
@@ -32,18 +32,41 @@
   // Ohne verstorbene Person gibt es keine Abwicklung; dann zurück zu den Einträgen.
   const activeView = $derived<View>(view === "abwicklung" && deceased.length === 0 ? "eintraege" : view);
 
-  async function save() {
+  /** Speichert und gibt zurück, ob es geklappt hat. */
+  async function save(): Promise<boolean> {
     try {
       await store.save();
+      return true;
     } catch (err) {
       store.lastError = `Speichern fehlgeschlagen: ${errorMessage(err)}`;
+      failedAtChange = store.changes;
+      return false;
     }
   }
 
-  async function lock() {
-    if (store.dirty && !(await backend.confirm("Es gibt ungespeicherte Änderungen. Trotzdem sperren?"))) return;
-    await store.close();
+  /**
+   * Vor dem Sperren oder Beenden: mit automatischem Speichern wird zuerst
+   * gespeichert, sonst (oder wenn das scheitert) wird nachgefragt.
+   */
+  async function readyToLeave(action: string): Promise<boolean> {
+    if (!store.dirty) return true;
+    if (store.autoSave && (await save()) && !store.dirty) return true;
+    return backend.confirm(`Es gibt ungespeicherte Änderungen. Trotzdem ${action}?`);
   }
+
+  async function lock() {
+    if (await readyToLeave("sperren")) await store.close();
+  }
+
+  // Automatisch speichern: einige Sekunden nach der letzten Änderung. Nach einem
+  // Fehler wird erst bei der nächsten Änderung wieder versucht.
+  let failedAtChange = $state(-1);
+  $effect(() => {
+    const changes = store.changes;
+    if (!store.autoSave || !store.dirty || store.saving || changes === failedAtChange) return;
+    const timer = setTimeout(save, AUTO_SAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  });
 
   function addEntry() {
     editingEntry = newEntry({ personIds: selectedPersonId ? [selectedPersonId] : [] });
@@ -106,9 +129,7 @@
     if (backend.isPreview) return;
     // Fenster nicht schließen, solange Änderungen ungespeichert sind.
     const unlisten = getCurrentWindow().onCloseRequested(async (event) => {
-      if (store.dirty && !(await backend.confirm("Es gibt ungespeicherte Änderungen. Trotzdem beenden?"))) {
-        event.preventDefault();
-      }
+      if (!(await readyToLeave("beenden"))) event.preventDefault();
     });
     return () => {
       unlisten.then((fn) => fn());
@@ -145,7 +166,7 @@
       </div>
       <div class="actions">
         <span class="file" title={store.path ?? ""}>
-          {fileName}{#if store.dirty}<span class="dirty">{" · ungespeichert"}</span>{/if}
+          {fileName}{#if store.saving}<span class="muted">{" · speichert …"}</span>{:else if store.dirty}<span class="dirty">{store.autoSave && store.changes !== failedAtChange ? " · wird gleich gespeichert" : " · ungespeichert"}</span>{:else if store.autoSave}<span class="muted">{" · gespeichert"}</span>{/if}
         </span>
         <button class="primary" onclick={save} disabled={!store.dirty || store.saving}>
           {store.saving ? "Speichert …" : "Speichern"}
