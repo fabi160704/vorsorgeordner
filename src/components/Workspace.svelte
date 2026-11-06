@@ -3,19 +3,23 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { backend, errorMessage } from "../lib/backend";
   import { store } from "../lib/state.svelte";
+  import type { ChecklistItem } from "../lib/checklist";
   import { belongsTo, newEntry, newPerson, type Entry, type Person } from "../lib/model";
+  import Checklist from "./Checklist.svelte";
   import EntryForm from "./EntryForm.svelte";
   import EntryList from "./EntryList.svelte";
   import Overview from "./Overview.svelte";
   import PersonForm from "./PersonForm.svelte";
   import PrintView from "./PrintView.svelte";
+  import SettingsDialog from "./SettingsDialog.svelte";
 
-  type View = "eintraege" | "uebersicht" | "druck";
+  type View = "eintraege" | "uebersicht" | "checkliste" | "druck";
 
   let view = $state<View>("eintraege");
   let selectedPersonId = $state<string | null>(null);
   let editingEntry = $state<Entry | null>(null);
   let editingPerson = $state<Person | null>(null);
+  let settingsOpen = $state(false);
 
   const vault = $derived(store.vault!);
   const selectedPerson = $derived(vault.persons.find((p) => p.id === selectedPersonId) ?? null);
@@ -39,7 +43,53 @@
     editingEntry = newEntry({ personIds: selectedPersonId ? [selectedPersonId] : [] });
   }
 
+  function addFromChecklist(item: ChecklistItem) {
+    editingEntry = newEntry({
+      category: item.suggestion.category,
+      title: item.suggestion.title,
+      personIds: item.personId ? [item.personId] : [],
+    });
+  }
+
+  // Automatisches Sperren: Jede Eingabe setzt die Zeit zurück.
+  let lastActivity = Date.now();
+  let autoLocking = false;
+
+  function markActivity() {
+    lastActivity = Date.now();
+  }
+
+  async function autoLock(minutes: number) {
+    if (autoLocking) return;
+    autoLocking = true;
+    try {
+      if (store.dirty) {
+        try {
+          await store.save();
+        } catch (err) {
+          store.lastError = `Automatisches Sperren nicht möglich, weil das Speichern fehlgeschlagen ist: ${errorMessage(err)}`;
+          markActivity();
+          return;
+        }
+      }
+      await store.close(`Automatisch gesperrt nach ${minutes} Minuten ohne Eingabe.`);
+    } finally {
+      autoLocking = false;
+    }
+  }
+
+  $effect(() => {
+    const minutes = store.vault?.settings.autoLockMinutes ?? 0;
+    if (!minutes) return;
+    markActivity();
+    const timer = setInterval(() => {
+      if (Date.now() - lastActivity >= minutes * 60_000) autoLock(minutes);
+    }, 5_000);
+    return () => clearInterval(timer);
+  });
+
   function onKeydown(event: KeyboardEvent) {
+    markActivity();
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
       save();
@@ -60,7 +110,7 @@
   });
 </script>
 
-<svelte:window onkeydown={onKeydown} />
+<svelte:window onkeydown={onKeydown} onpointerdown={markActivity} onpointermove={markActivity} onwheel={markActivity} />
 
 <div class="layout">
   <aside class="sidebar no-print">
@@ -94,6 +144,7 @@
         <button class="primary" onclick={save} disabled={!store.dirty || store.saving}>
           {store.saving ? "Speichert …" : "Speichern"}
         </button>
+        <button onclick={() => (settingsOpen = true)}>Einstellungen</button>
         <button onclick={lock}>Sperren</button>
       </div>
     </header>
@@ -108,6 +159,7 @@
     <div class="views no-print" role="tablist">
       <button role="tab" aria-selected={view === "eintraege"} onclick={() => (view = "eintraege")}>Einträge</button>
       <button role="tab" aria-selected={view === "uebersicht"} onclick={() => (view = "uebersicht")}>Übersicht</button>
+      <button role="tab" aria-selected={view === "checkliste"} onclick={() => (view = "checkliste")}>Checkliste</button>
       <button role="tab" aria-selected={view === "druck"} onclick={() => (view = "druck")}>Druckansicht</button>
     </div>
 
@@ -122,6 +174,14 @@
         />
       {:else if view === "uebersicht"}
         <Overview entries={visibleEntries} persons={vault.persons} onedit={(entry) => (editingEntry = entry)} />
+      {:else if view === "checkliste"}
+        <Checklist
+          {vault}
+          personId={selectedPersonId}
+          onadd={addFromChecklist}
+          onedit={(entry) => (editingEntry = entry)}
+          ontoggle={(key) => store.toggleDismissed(key)}
+        />
       {:else}
         <PrintView entries={visibleEntries} persons={vault.persons} person={selectedPerson} />
       {/if}
@@ -146,6 +206,10 @@
       onclose={() => (editingEntry = null)}
     />
   {/key}
+{/if}
+
+{#if settingsOpen}
+  <SettingsDialog onclose={() => (settingsOpen = false)} />
 {/if}
 
 {#if editingPerson}

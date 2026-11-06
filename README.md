@@ -6,7 +6,7 @@ Alle Daten liegen verschlüsselt in einer einzigen Datei. Die Datei verwendet da
 
 ## Stand
 
-Version 0.1, ein lauffähiges Grundgerüst:
+Version 0.2:
 
 - Vorsorgeordner-Datei anlegen und mit Passphrase entsperren
 - Personen verwalten, mit Geburts- und Sterbedatum und freien Hinweisen
@@ -14,7 +14,11 @@ Version 0.1, ein lauffähiges Grundgerüst:
 - Pro Eintrag: Anbieter, Vertrags- oder Mitgliedsnummer, Kontakt, Betrag und Intervall, Zahlungsweg, Laufzeit, Kündigungsfrist, Hinweis auf Zugangsdaten, Ablageort der Unterlagen, Aktion im Todesfall, Prüfdatum
 - Abwicklungsstatus (offen, in Bearbeitung, erledigt), sobald für eine Person ein Sterbedatum eingetragen ist
 - Übersicht mit laufenden Kosten pro Monat und Jahr, bald endenden Laufzeiten und lange nicht geprüften Einträgen
+- Checkliste typischer Einträge pro Person und für den Haushalt, die zeigt, was noch fehlt
 - Druckansicht, die sich über den Druckdialog auch als PDF speichern lässt
+- Export als unverschlüsseltes JSON (alle Daten) oder CSV (Tabelle für Excel)
+- Passphrase ändern
+- Automatisches Sperren nach einstellbarer Zeit ohne Eingabe, vorher wird gespeichert
 
 Konzept, Varianten und nächste Schritte stehen in [docs/konzept.md](docs/konzept.md).
 
@@ -60,13 +64,15 @@ Installer für das aktuelle Betriebssystem bauen (Ergebnis unter `src-tauri/targ
 npm run tauri build
 ```
 
-Installer für alle drei Betriebssysteme baut der GitHub-Workflow in `.github/workflows/build.yml`, sobald ein Tag wie `v0.1.0` gepusht wird.
+Installer für alle drei Betriebssysteme baut der GitHub-Workflow in `.github/workflows/build.yml`, sobald ein Tag wie `v0.2.0` gepusht wird.
 
 ## Aufbau
 
 ```text
 src/                    Oberfläche (Svelte 5, TypeScript)
   lib/model.ts          Datenmodell, Kategorien, Kostenberechnung
+  lib/checklist.ts      Checkliste typischer Einträge
+  lib/export.ts         Export als JSON und CSV
   lib/state.svelte.ts   Zustand der geöffneten Datei
   lib/backend.ts        Aufrufe an den Rust-Teil, Browser-Vorschau
   components/           Ansichten und Formulare
@@ -81,6 +87,8 @@ docs/                   Konzept und Datenformat
 - Die Datei ist mit der Passphrase verschlüsselt. Ohne Passphrase kommt niemand an die Daten, auch nicht Angehörige. Die Passphrase sollte deshalb auf Papier hinterlegt werden, zum Beispiel bei Testament oder Vorsorgevollmacht.
 - Die App speichert Hinweise, wo Zugangsdaten liegen, aber keine Passwörter. Passwörter gehören in einen Passwortmanager mit Notfallzugang.
 - Beim Speichern bleibt die vorherige Version als `<datei>.age.bak` erhalten.
+- Nach 15 Minuten ohne Eingabe sperrt sich die App. Die Zeit lässt sich in den Einstellungen ändern.
+- Exporte sind unverschlüsselt. Die App warnt davor und überschreibt dabei nie eine `.age`-Datei.
 - `*.age`-Dateien sind per `.gitignore` vom Repository ausgeschlossen.
 
 Das App-Symbol entsteht aus `app-icon.svg` mit `npx tauri icon app-icon.svg -o src-tauri/icons`.

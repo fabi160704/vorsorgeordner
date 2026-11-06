@@ -70,6 +70,9 @@ Alle Kategorien haben dieselben Felder. Nicht benötigte Felder bleiben leer. Da
 - Die Passphrase bleibt nach dem Entsperren nur im Rust-Teil der App und wird beim Sperren verworfen.
 - Gespeichert wird über eine temporäre Datei, die erst nach vollständigem Schreiben das Original ersetzt. Die vorige Version bleibt als `.bak` erhalten.
 - Die App speichert keine Passwörter, sondern nur Hinweise, wo sie zu finden sind. Für Passwörter eignet sich ein Passwortmanager mit Notfallzugang, der Angehörigen nach einer Wartezeit Zugriff gibt.
+- Nach einer einstellbaren Zeit ohne Eingabe (Standard 15 Minuten) speichert die App und sperrt sich.
+- Beim Ändern der Passphrase wird auch die Sicherungskopie `.bak` neu verschlüsselt. Kopien außerhalb der App, etwa im Versionsverlauf eines Cloud-Ordners, bleiben mit der alten Passphrase lesbar.
+- Exporte als JSON oder CSV sind unverschlüsselt. Die App warnt vorher und weigert sich, dabei eine verschlüsselte `.age`-Datei zu überschreiben.
 - Die Oberfläche darf nur die eigenen Befehle und die Dateidialoge aufrufen (Tauri Capabilities, `src-tauri/capabilities/default.json`), und eine Content Security Policy verhindert das Nachladen fremder Inhalte.
 
 Wenn die Passphrase verloren geht, sind die Daten nicht wiederherstellbar. Deshalb gehört die Passphrase auf Papier an einen Ort, den Angehörige im Ernstfall kennen, zum Beispiel in einen verschlossenen Umschlag bei der Vorsorgevollmacht. Zusätzlich hilft ein aktueller Ausdruck der Druckansicht im Ordner mit den Originaldokumenten.
@@ -84,14 +87,15 @@ Damit der Vorsorgeordner im Ernstfall hilft, müssen Angehörige drei Dinge wiss
 
 Diese Angaben gehören in die Unterlagen, die Angehörige sicher finden, etwa zur Vorsorgevollmacht.
 
+## Checkliste
+
+Die Checkliste schlägt typische Einträge vor. Elf Punkte gelten für jede Person einzeln (Krankenversicherung, Hausarzt, Girokonto, Rentenversicherung, Finanzamt, Ausweise, Mobilfunk, E-Mail, Testament, Vorsorgevollmacht, Patientenverfügung), sechs für den Haushalt (Haftpflicht, Hausrat, Mietvertrag oder Grundbuch, Strom, Internet, Rundfunkbeitrag).
+
+Ein Punkt gilt als erledigt, wenn ein Eintrag in einer passenden Kategorie existiert, dessen Bezeichnung oder Anbieter ein Stichwort enthält. Bei "Krankenversicherung" reicht also ein Eintrag "Krankenkasse" in der Kategorie Gesundheit. Einträge ohne Person zählen für alle Personen. Punkte, die nicht zutreffen, lassen sich ausblenden; das wird in der Datei gespeichert.
+
 ## Nächste Schritte
 
-Version 0.2:
-
-- Checkliste typischer Einträge, die zeigt, was noch fehlt (Krankenkasse, Haftpflicht, Girokonto, Rentenversicherung, Rundfunkbeitrag, Testament, Vorsorgevollmacht und ähnliche)
-- Passphrase ändern
-- Automatisches Sperren nach einer einstellbaren Zeit ohne Eingabe
-- Export als unverschlüsseltes JSON oder CSV mit Warnhinweis
+Umgesetzt in Version 0.2: Checkliste, Passphrase ändern, automatisches Sperren, Export als JSON und CSV.
 
 Version 0.3:
 

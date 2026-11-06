@@ -55,6 +55,10 @@
     <h1>Vorsorgeordner</h1>
     <p class="muted">Verträge, Versicherungen und wichtige Hinweise an einem Ort, verschlüsselt in einer Datei.</p>
 
+    {#if store.lockMessage}
+      <p class="notice">{store.lockMessage}</p>
+    {/if}
+
     {#if backend.isPreview}
       <p class="notice">
         Browser-Vorschau mit Beispieldaten. Hier wird nichts gespeichert. Die Desktop-App startet mit

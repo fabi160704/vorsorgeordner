@@ -24,6 +24,13 @@ impl AppState {
     fn set(&self, session: Option<Session>) {
         *self.session.lock().unwrap_or_else(|e| e.into_inner()) = session;
     }
+
+    /// Kopie von Pfad und Passphrase der geöffneten Datei.
+    fn current(&self) -> Result<(PathBuf, SecretString), VaultError> {
+        let guard = self.session.lock().unwrap_or_else(|e| e.into_inner());
+        let session = guard.as_ref().ok_or(VaultError::NotOpen)?;
+        Ok((session.path.clone(), session.passphrase.clone()))
+    }
 }
 
 /// scrypt braucht bewusst etwa eine Sekunde. Das läuft in einem eigenen Thread,
@@ -72,12 +79,35 @@ async fn vault_open(
 
 #[tauri::command]
 async fn vault_save(state: State<'_, AppState>, content: String) -> Result<(), VaultError> {
-    let (path, passphrase) = {
-        let guard = state.session.lock().unwrap_or_else(|e| e.into_inner());
-        let session = guard.as_ref().ok_or(VaultError::NotOpen)?;
-        (session.path.clone(), session.passphrase.clone())
-    };
+    let (path, passphrase) = state.current()?;
     blocking(move || vault::write_vault(&path, &passphrase, &content)).await
+}
+
+/// Speichert den aktuellen Inhalt mit einer neuen Passphrase.
+#[tauri::command]
+async fn vault_change_passphrase(
+    state: State<'_, AppState>,
+    current: String,
+    next: String,
+    content: String,
+) -> Result<(), VaultError> {
+    let (path, old) = state.current()?;
+    vault::verify_passphrase(&old, &current)?;
+    vault::check_passphrase(&next)?;
+    let next = SecretString::from(next);
+    {
+        let (path, next) = (path.clone(), next.clone());
+        blocking(move || vault::change_passphrase(&path, &old, &next, &content)).await?;
+    }
+    state.set(Some(Session { path, passphrase: next }));
+    Ok(())
+}
+
+/// Schreibt einen unverschlüsselten Export (JSON oder CSV).
+#[tauri::command]
+fn export_plain(state: State<'_, AppState>, path: String, content: String) -> Result<(), VaultError> {
+    let vault_path = state.current().ok().map(|(p, _)| p);
+    vault::write_export(&PathBuf::from(path), vault_path.as_deref(), &content)
 }
 
 #[tauri::command]
@@ -99,7 +129,9 @@ pub fn run() {
             vault_create,
             vault_open,
             vault_save,
+            vault_change_passphrase,
             vault_close,
+            export_plain,
             print_page
         ])
         .run(tauri::generate_context!())
