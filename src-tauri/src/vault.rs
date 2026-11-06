@@ -13,7 +13,7 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use age::secrecy::SecretString;
+use age::secrecy::{ExposeSecret, SecretString};
 
 /// Mindestlänge der Passphrase in Zeichen.
 pub const MIN_PASSPHRASE_LEN: usize = 12;
@@ -38,6 +38,10 @@ pub enum VaultError {
     TooLarge,
     #[error("Es ist kein Vorsorgeordner geöffnet.")]
     NotOpen,
+    #[error("Die bisherige Passphrase ist falsch.")]
+    WrongPassphrase,
+    #[error("Ein Export darf keine verschlüsselte .age-Datei überschreiben.")]
+    ExportWouldOverwriteVault,
 }
 
 // Tauri gibt Fehler als Wert an das Frontend weiter; dort genügt der Text.
@@ -86,8 +90,61 @@ pub fn read_vault(path: &Path, passphrase: &SecretString) -> Result<String, Vaul
 pub fn write_vault(path: &Path, passphrase: &SecretString, content: &str) -> Result<(), VaultError> {
     check_json(content)?;
     let ciphertext = encrypt(content.as_bytes(), passphrase)?;
-    write_atomic(path, &ciphertext)?;
+    write_atomic(path, &ciphertext, true)?;
     Ok(())
+}
+
+/// Prüft die bisherige Passphrase gegen die der geöffneten Datei.
+pub fn verify_passphrase(expected: &SecretString, given: &str) -> Result<(), VaultError> {
+    if expected.expose_secret() != given {
+        return Err(VaultError::WrongPassphrase);
+    }
+    Ok(())
+}
+
+/// Speichert den Inhalt mit einer neuen Passphrase.
+///
+/// Die Sicherungskopie `.bak` wird ebenfalls auf die neue Passphrase
+/// umgestellt. Sonst bliebe neben der Datei eine Kopie liegen, die sich mit
+/// der alten Passphrase öffnen lässt. Lässt sich die Sicherung mit der alten
+/// Passphrase nicht öffnen, bleibt sie unverändert.
+pub fn change_passphrase(
+    path: &Path,
+    old: &SecretString,
+    new: &SecretString,
+    content: &str,
+) -> Result<(), VaultError> {
+    write_vault(path, new, content)?;
+    let backup = backup_path(path);
+    if backup.exists() {
+        if let Ok(previous) = read_vault(&backup, old) {
+            let ciphertext = encrypt(previous.as_bytes(), new)?;
+            write_atomic(&backup, &ciphertext, false)?;
+        }
+    }
+    Ok(())
+}
+
+/// Schreibt einen unverschlüsselten Export. Verschlüsselte Dateien werden
+/// dabei nie überschrieben, damit ein Export nicht versehentlich den
+/// Vorsorgeordner im Klartext ersetzt.
+pub fn write_export(path: &Path, vault_path: Option<&Path>, content: &str) -> Result<(), VaultError> {
+    let is_age = path
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("age") || ext.eq_ignore_ascii_case("bak"));
+    if is_age || vault_path.is_some_and(|v| v == path) || looks_like_age_file(path) {
+        return Err(VaultError::ExportWouldOverwriteVault);
+    }
+    write_atomic(path, content.as_bytes(), false)?;
+    Ok(())
+}
+
+fn looks_like_age_file(path: &Path) -> bool {
+    use std::io::Read;
+    let mut header = [0u8; 21];
+    File::open(path)
+        .and_then(|mut f| f.read_exact(&mut header))
+        .is_ok_and(|_| &header == b"age-encryption.org/v1")
 }
 
 fn sibling_with_suffix(path: &Path, suffix: &str) -> PathBuf {
@@ -101,16 +158,17 @@ pub fn backup_path(path: &Path) -> PathBuf {
 }
 
 /// Schreibt zuerst in eine temporäre Datei und ersetzt dann das Original.
-/// Die vorherige Version bleibt als `<datei>.bak` erhalten. So geht bei einem
-/// Absturz während des Speicherns nie der letzte gültige Stand verloren.
-fn write_atomic(path: &Path, data: &[u8]) -> std::io::Result<()> {
+/// Mit `keep_backup` bleibt die vorherige Version als `<datei>.bak` erhalten.
+/// So geht bei einem Absturz während des Speicherns nie der letzte gültige
+/// Stand verloren.
+fn write_atomic(path: &Path, data: &[u8], keep_backup: bool) -> std::io::Result<()> {
     let tmp = sibling_with_suffix(path, ".tmp");
     {
         let mut file = File::create(&tmp)?;
         file.write_all(data)?;
         file.sync_all()?;
     }
-    if path.exists() {
+    if keep_backup && path.exists() {
         fs::copy(path, backup_path(path))?;
     }
     fs::rename(&tmp, path)?;
@@ -170,6 +228,50 @@ mod tests {
         let err = write_vault(&path, &pass("korrekte passphrase"), "kein json").unwrap_err();
         assert!(matches!(err, VaultError::Json(_)));
         assert!(!path.exists());
+    }
+
+    #[test]
+    fn change_passphrase_reencrypts_file_and_backup() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.age");
+        let old = pass("alte passphrase 1");
+        let new = pass("neue passphrase 2");
+        write_vault(&path, &old, r#"{"v":1}"#).unwrap();
+
+        change_passphrase(&path, &old, &new, r#"{"v":2}"#).unwrap();
+
+        assert_eq!(read_vault(&path, &new).unwrap(), r#"{"v":2}"#);
+        assert!(matches!(read_vault(&path, &old), Err(VaultError::Decrypt)));
+        // Die Sicherung enthält den vorigen Stand, aber mit der neuen Passphrase.
+        assert_eq!(read_vault(&backup_path(&path), &new).unwrap(), r#"{"v":1}"#);
+        assert!(matches!(read_vault(&backup_path(&path), &old), Err(VaultError::Decrypt)));
+    }
+
+    #[test]
+    fn verify_passphrase_compares() {
+        let p = pass("korrekte passphrase");
+        assert!(verify_passphrase(&p, "korrekte passphrase").is_ok());
+        assert!(matches!(verify_passphrase(&p, "falsch"), Err(VaultError::WrongPassphrase)));
+    }
+
+    #[test]
+    fn export_never_overwrites_encrypted_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = dir.path().join("ordner.age");
+        write_vault(&vault, &pass("korrekte passphrase"), "{}").unwrap();
+
+        // Endung .age, die geöffnete Datei selbst und age-Dateien mit anderer Endung sind tabu.
+        let renamed = dir.path().join("kopie.json");
+        fs::copy(&vault, &renamed).unwrap();
+        for target in [&vault, &dir.path().join("neu.AGE"), &renamed] {
+            let err = write_export(target, Some(&vault), "{}").unwrap_err();
+            assert!(matches!(err, VaultError::ExportWouldOverwriteVault), "{target:?}");
+        }
+
+        let export = dir.path().join("export.csv");
+        write_export(&export, Some(&vault), "a;b").unwrap();
+        assert_eq!(fs::read_to_string(&export).unwrap(), "a;b");
+        assert!(!backup_path(&export).exists());
     }
 
     #[test]

@@ -35,12 +35,15 @@ class Store {
   dirty = $state(false);
   saving = $state(false);
   lastError = $state<string | null>(null);
+  /** Hinweis auf dem Entsperr-Bildschirm, z. B. nach automatischem Sperren. */
+  lockMessage = $state<string | null>(null);
 
   async open(path: string, passphrase: string) {
     const json = await backend.open(path, passphrase);
     this.vault = parseVault(json);
     this.path = path;
     this.dirty = false;
+    this.lockMessage = null;
     this.recentPath = path;
     writeRecent(path);
   }
@@ -68,11 +71,44 @@ class Store {
     }
   }
 
-  async close() {
+  async close(message: string | null = null) {
     await backend.close();
     this.vault = null;
     this.path = null;
     this.dirty = false;
+    this.lastError = null;
+    this.lockMessage = message;
+  }
+
+  /** Speichert den aktuellen Stand mit neuer Passphrase. Ungespeicherte Änderungen werden mitgespeichert. */
+  async changePassphrase(current: string, next: string) {
+    if (!this.vault) return;
+    this.saving = true;
+    try {
+      this.vault.updatedAt = nowIso();
+      await backend.changePassphrase(current, next, serializeVault($state.snapshot(this.vault) as Vault));
+      this.dirty = false;
+    } finally {
+      this.saving = false;
+    }
+  }
+
+  snapshot(): Vault | null {
+    return this.vault ? ($state.snapshot(this.vault) as Vault) : null;
+  }
+
+  setAutoLock(minutes: number) {
+    if (!this.vault || this.vault.settings.autoLockMinutes === minutes) return;
+    this.vault.settings.autoLockMinutes = minutes;
+    this.dirty = true;
+  }
+
+  /** Markiert einen Punkt der Checkliste als "trifft nicht zu" oder nimmt die Markierung zurück. */
+  toggleDismissed(key: string) {
+    if (!this.vault) return;
+    const list = this.vault.dismissedSuggestions;
+    this.vault.dismissedSuggestions = list.includes(key) ? list.filter((k) => k !== key) : [...list, key];
+    this.dirty = true;
   }
 
   upsertEntry(entry: Entry) {

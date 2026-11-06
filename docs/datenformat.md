@@ -29,12 +29,18 @@ Der entschlüsselte Inhalt ist ein JSON-Dokument:
   "formatVersion": 1,
   "createdAt": "2026-11-06T10:00:00.000Z",
   "updatedAt": "2026-11-06T10:30:00.000Z",
+  "settings": { "autoLockMinutes": 15 },
   "persons": [ ... ],
-  "entries": [ ... ]
+  "entries": [ ... ],
+  "dismissedSuggestions": [ "hausrat", "testament:<Personen-ID>" ]
 }
 ```
 
 Leere Felder sind leere Zeichenketten. Datumsangaben haben die Form `JJJJ-MM-TT`.
+
+`settings.autoLockMinutes` ist die Zeit ohne Eingabe bis zum automatischen Sperren, `0` heißt nie. `dismissedSuggestions` enthält die Punkte der Checkliste, die als "trifft nicht zu" markiert sind: die Kennung des Vorschlags (siehe `src/lib/checklist.ts`), bei Punkten für eine Person gefolgt von `:` und der Personen-ID. Beide Felder kamen mit Version 0.2 hinzu und fehlen in älteren Dateien.
+
+Der JSON-Export der App hat genau dieses Format, ist aber unverschlüsselt.
 
 ### Person
 

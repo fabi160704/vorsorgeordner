@@ -113,12 +113,24 @@ export interface Entry {
   updatedAt: string;
 }
 
+export interface Settings {
+  /** Minuten ohne Eingabe bis zum automatischen Sperren, 0 = aus. */
+  autoLockMinutes: number;
+}
+
+export const AUTO_LOCK_OPTIONS = [0, 2, 5, 10, 15, 30, 60];
+
+export const DEFAULT_SETTINGS: Settings = { autoLockMinutes: 15 };
+
 export interface Vault {
   formatVersion: number;
   createdAt: string;
   updatedAt: string;
+  settings: Settings;
   persons: Person[];
   entries: Entry[];
+  /** Punkte der Checkliste, die als "trifft nicht zu" markiert sind (siehe checklist.ts). */
+  dismissedSuggestions: string[];
 }
 
 export function newId(): string {
@@ -136,7 +148,15 @@ export function nowIso(): string {
 
 export function emptyVault(): Vault {
   const now = nowIso();
-  return { formatVersion: FORMAT_VERSION, createdAt: now, updatedAt: now, persons: [], entries: [] };
+  return {
+    formatVersion: FORMAT_VERSION,
+    createdAt: now,
+    updatedAt: now,
+    settings: { ...DEFAULT_SETTINGS },
+    persons: [],
+    entries: [],
+    dismissedSuggestions: [],
+  };
 }
 
 export function newPerson(fields: Partial<Person> = {}): Person {
@@ -195,8 +215,12 @@ export function parseVault(json: string): Vault {
     formatVersion: FORMAT_VERSION,
     createdAt: raw.createdAt ?? base.createdAt,
     updatedAt: raw.updatedAt ?? base.updatedAt,
+    settings: { ...DEFAULT_SETTINGS, ...(typeof raw.settings === "object" ? raw.settings : {}) },
     persons: Array.isArray(raw.persons) ? raw.persons.map((p) => newPerson(p)) : [],
     entries: Array.isArray(raw.entries) ? raw.entries.map((e) => newEntry(e)) : [],
+    dismissedSuggestions: Array.isArray(raw.dismissedSuggestions)
+      ? raw.dismissedSuggestions.filter((k): k is string => typeof k === "string")
+      : [],
   };
 }
 
