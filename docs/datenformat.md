@@ -6,7 +6,7 @@ Diese Beschreibung ist auch für Angehörige gedacht, die die Datei öffnen müs
 
 Ein Vorsorgeordner ist eine einzelne Datei mit der Endung `.age`. Sie ist im [age-Format v1](https://age-encryption.org/v1) mit einer Passphrase verschlüsselt (scrypt). Die Datei beginnt mit der Zeile `age-encryption.org/v1`.
 
-Neben der Datei liegt nach dem ersten Speichern `<datei>.age.bak`. Das ist der Stand vor dem letzten Speichern, mit derselben Passphrase verschlüsselt.
+Neben der Datei liegt nach dem ersten Speichern `<datei>.age.bak`. Das ist der Stand beim Öffnen der Datei in der letzten Sitzung, mit derselben Passphrase verschlüsselt.
 
 ## Ohne die App öffnen
 
@@ -40,7 +40,7 @@ Der entschlüsselte Inhalt ist ein JSON-Dokument:
 
 Leere Felder sind leere Zeichenketten. Datumsangaben haben die Form `JJJJ-MM-TT`.
 
-`settings.autoLockMinutes` ist die Zeit ohne Eingabe bis zum automatischen Sperren, `0` heißt nie. `dismissedSuggestions` enthält die Punkte der Checkliste, die als "trifft nicht zu" markiert sind: die Kennung des Vorschlags (siehe `src/lib/checklist.ts`), bei Punkten für eine Person gefolgt von `:` und der Personen-ID. Beide Felder kamen mit Version 0.2 hinzu und fehlen in älteren Dateien.
+`settings.autoLockMinutes` ist die Zeit ohne Eingabe bis zum automatischen Sperren, `0` heißt nie. `settings.autoSave` schaltet das automatische Speichern ein (Standard) oder aus. `dismissedSuggestions` enthält die Punkte der Checkliste, die als "trifft nicht zu" markiert sind: die Kennung des Vorschlags (siehe `src/lib/checklist.ts`), bei Punkten für eine Person gefolgt von `:` und der Personen-ID. Beide Felder kamen mit Version 0.2 hinzu und fehlen in älteren Dateien.
 
 `estateSteps` enthält den Stand der allgemeinen Schritte nach einem Todesfall (siehe `src/lib/estate.ts`), `attachmentKey` den Schlüssel für die Anhänge. Beide kamen mit Version 0.3 hinzu.
 

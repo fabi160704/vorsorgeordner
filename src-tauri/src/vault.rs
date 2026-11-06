@@ -95,10 +95,23 @@ pub fn read_vault(path: &Path, passphrase: &SecretString) -> Result<String, Vaul
 }
 
 /// Verschlüsselt den JSON-Inhalt und schreibt ihn sicher auf die Platte.
+/// Die vorherige Version bleibt als `.bak` erhalten.
 pub fn write_vault(path: &Path, passphrase: &SecretString, content: &str) -> Result<(), VaultError> {
+    write_vault_with(path, passphrase, content, true)
+}
+
+/// Wie `write_vault`, aber nur mit `keep_backup` wird die `.bak`-Datei ersetzt.
+/// Beim automatischen Speichern behält die App so den Stand vom Öffnen der
+/// Datei als Sicherung, statt ihn alle paar Sekunden zu überschreiben.
+pub fn write_vault_with(
+    path: &Path,
+    passphrase: &SecretString,
+    content: &str,
+    keep_backup: bool,
+) -> Result<(), VaultError> {
     check_json(content)?;
     let ciphertext = encrypt(content.as_bytes(), passphrase)?;
-    write_atomic(path, &ciphertext, true)?;
+    write_atomic(path, &ciphertext, keep_backup)?;
     Ok(())
 }
 
@@ -231,6 +244,19 @@ mod tests {
         assert_eq!(read_vault(&path, &p).unwrap(), r#"{"v":2}"#);
         assert_eq!(read_vault(&backup_path(&path), &p).unwrap(), r#"{"v":1}"#);
         assert!(!sibling_with_suffix(&path, ".tmp").exists());
+    }
+
+    #[test]
+    fn save_without_backup_keeps_older_backup() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.age");
+        let p = pass("korrekte passphrase");
+        write_vault(&path, &p, r#"{"v":1}"#).unwrap();
+        write_vault(&path, &p, r#"{"v":2}"#).unwrap();
+        write_vault_with(&path, &p, r#"{"v":3}"#, false).unwrap();
+
+        assert_eq!(read_vault(&path, &p).unwrap(), r#"{"v":3}"#);
+        assert_eq!(read_vault(&backup_path(&path), &p).unwrap(), r#"{"v":1}"#);
     }
 
     #[test]

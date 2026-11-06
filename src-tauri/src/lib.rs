@@ -15,6 +15,10 @@ use vault::VaultError;
 struct Session {
     path: PathBuf,
     passphrase: SecretString,
+    /// Ob in dieser Sitzung schon eine Sicherung `.bak` geschrieben wurde.
+    /// Die Sicherung entsteht beim ersten Speichern nach dem Öffnen und
+    /// enthält damit den Stand vom Öffnen, auch wenn danach oft gespeichert wird.
+    backup_done: bool,
 }
 
 #[derive(Default)]
@@ -32,6 +36,18 @@ impl AppState {
         let guard = self.session.lock().unwrap_or_else(|e| e.into_inner());
         let session = guard.as_ref().ok_or(VaultError::NotOpen)?;
         Ok((session.path.clone(), session.passphrase.clone()))
+    }
+
+    fn backup_done(&self) -> bool {
+        let guard = self.session.lock().unwrap_or_else(|e| e.into_inner());
+        guard.as_ref().is_some_and(|s| s.backup_done)
+    }
+
+    fn mark_backup_done(&self) {
+        let mut guard = self.session.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(session) = guard.as_mut() {
+            session.backup_done = true;
+        }
     }
 }
 
@@ -69,7 +85,7 @@ async fn vault_create(
         let (path, passphrase) = (path.clone(), passphrase.clone());
         blocking(move || vault::write_vault(&path, &passphrase, &content)).await?;
     }
-    state.set(Some(Session { path, passphrase }));
+    state.set(Some(Session { path, passphrase, backup_done: true }));
     Ok(())
 }
 
@@ -85,14 +101,17 @@ async fn vault_open(
         let (path, passphrase) = (path.clone(), passphrase.clone());
         blocking(move || vault::read_vault(&path, &passphrase)).await?
     };
-    state.set(Some(Session { path, passphrase }));
+    state.set(Some(Session { path, passphrase, backup_done: false }));
     Ok(content)
 }
 
 #[tauri::command]
 async fn vault_save(state: State<'_, AppState>, content: String) -> Result<(), VaultError> {
     let (path, passphrase) = state.current()?;
-    blocking(move || vault::write_vault(&path, &passphrase, &content)).await
+    let keep_backup = !state.backup_done();
+    blocking(move || vault::write_vault_with(&path, &passphrase, &content, keep_backup)).await?;
+    state.mark_backup_done();
+    Ok(())
 }
 
 /// Speichert den aktuellen Inhalt mit einer neuen Passphrase.
@@ -111,7 +130,7 @@ async fn vault_change_passphrase(
         let (path, next) = (path.clone(), next.clone());
         blocking(move || vault::change_passphrase(&path, &old, &next, &content)).await?;
     }
-    state.set(Some(Session { path, passphrase: next }));
+    state.set(Some(Session { path, passphrase: next, backup_done: true }));
     Ok(())
 }
 

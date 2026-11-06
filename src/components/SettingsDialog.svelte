@@ -76,6 +76,22 @@
 
   <div class="body">
     <section>
+      <h3>Automatisch speichern</h3>
+      <label class="check">
+        <input
+          type="checkbox"
+          checked={store.autoSave}
+          onchange={(e) => store.setAutoSave(e.currentTarget.checked)}
+        />
+        Änderungen wenige Sekunden nach der letzten Eingabe speichern
+      </label>
+      <p class="hint">
+        Die Sicherungskopie (.bak neben der Datei) enthält immer den Stand vom Öffnen der Datei. Ohne automatisches
+        Speichern speichert man mit dem Knopf oben oder mit Strg+S.
+      </p>
+    </section>
+
+    <section>
       <h3>Automatisch sperren</h3>
       <label class="field">
         <span class="label">Sperren nach</span>
